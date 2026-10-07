@@ -1,0 +1,43 @@
+name: On-call dashboard refresh
+
+on:
+  schedule:
+    - cron: "30 2 * * *"   # 02:30 UTC = 08:00 IST, every day
+  workflow_dispatch:
+    inputs:
+      since:
+        description: "Backfill from YYYY-MM-DD (optional)"
+        required: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Run job
+        env:
+          JIRA_BASE_URL: https://aftershoot.atlassian.net
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          INTERCOM_TOKEN: ${{ secrets.INTERCOM_TOKEN }}
+          POSTHOG_HOST: ${{ vars.POSTHOG_HOST }}
+          POSTHOG_PROJECT_ID: ${{ vars.POSTHOG_PROJECT_ID }}
+          POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}   # must be a persistent database, not SQLite
+        run: |
+          ARGS="--html site/index.html"
+          if [ -n "${{ github.event.inputs.since }}" ]; then ARGS="$ARGS --since ${{ github.event.inputs.since }}"; fi
+          python -m oncall.run $ARGS
+      - name: Keep the dashboard page
+        uses: actions/upload-artifact@v4
+        with:
+          name: oncall-dashboard
+          path: site/index.html
+          retention-days: 14

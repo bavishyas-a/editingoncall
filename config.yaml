@@ -1,0 +1,137 @@
+# Which tickets count. Matches the filter agreed for the dashboard; status is NOT
+# filtered, because plan changes mostly show up after a ticket is closed.
+jira:
+  jql: >-
+    project = ONCL AND cf[10582] = "Editing"
+    AND "issue topic[select list (multiple choices)]" = editing-ai-quality
+  fields:
+    user_id: customfield_10616      # "UserId/Email-oncl" (sometimes holds an email)
+    intercom_url: customfield_10816 # "Intercom"
+    ai_issue: customfield_11405     # "AI Issue?" (stored for reference; confirm which flag defines an AI issue)
+    profile_id: null                # Jira field holding the profile ID, e.g. customfield_12345. Set this once
+                                    # Dhruv confirms which field it is. Until then the job looks for a profile
+                                    # ID in the ticket text, then falls back to the user's last edit.
+  lookback_days: 120                # keep refreshing current plan for tickets this recent
+  exclude_user_ids: ["1234"]        # test tickets
+
+posthog:
+  batch_size: 25                    # users per query (results cap around 100 rows)
+  edit_event: "Edit Completed"
+  edit_lookback_days: 90            # how far back to look for the last edit before a ticket
+  profile_lookback_days: 180        # how far back to look up a profile's name and type from its ID
+
+intercom:
+  include_internal_notes: false     # transcript sent to the classifier
+  max_transcript_chars: 12000
+
+classify:
+  model: claude-sonnet-5-5
+  categories:
+    profile_quality: "Edits from an AI profile look wrong: colour, white balance, exposure, tone, consistency, or the profile not matching the user's style or training."
+    masking: "Problems with AI masks: subject or sky masks, mask sliders, skin or subject brightness driven by masking."
+    straightening: "Horizon or vertical straightening is wrong, missing, or applied when it shouldn't be."
+    cropping: "AI crop is wrong: aspect ratio not applied, heads cut off, orientation, crop not carried into Lightroom."
+    color_rendering: "Colours in Aftershoot differ from Lightroom (or Capture One) for the same edit: desaturation, tint, saturation or white balance that looks different once synced or exported, while the edit itself looks right in Aftershoot."
+    others: "Anything else: exports failing, camera support, lens corrections, app errors, training uploads, how-to questions."
+
+# Plan mapping. Raw names come from PostHog's `Subscription` property; plan_id is NOT
+# unique per plan (14 = Complete and Founders, 11 = Select + Edit and Edit + Select),
+# so matching is by name. Values marked null are unconfirmed: fill them in with
+# Aakansha and Dhruv. Unmapped names show up in the dashboard as "unknown plan".
+plans:
+  - name: Essentials
+    aliases: ["Essentials", "Aftershoot Essentials"]
+    family: legacy
+    cull: true
+    edit: true
+    retouch: false
+    custom_profiles: 0
+    crop_straighten: false
+  - name: Pro
+    aliases: ["Pro", "Aftershoot Pro"]
+    family: legacy
+    cull: true
+    edit: true
+    retouch: false
+    custom_profiles: 1
+    crop_straighten: true
+  - name: Max
+    aliases: ["Max", "Aftershoot Max"]
+    family: legacy
+    cull: true
+    edit: true
+    retouch: false
+    custom_profiles: 5
+    crop_straighten: true
+  - name: Founders
+    aliases: ["Founders", "Aftershoot Unlimited Founders Plan"]
+    family: legacy
+    cull: true
+    edit: true
+    retouch: true
+    custom_profiles: null
+    crop_straighten: true
+  - name: Selects
+    aliases: ["Selects", "Aftershoot Selects"]
+    family: legacy
+    cull: true
+    edit: false
+    retouch: false
+    custom_profiles: 0
+    crop_straighten: false
+  - name: Select
+    aliases: ["Select"]
+    family: current
+    cull: true
+    edit: false
+    retouch: false
+    custom_profiles: 0
+    crop_straighten: false
+  - name: Edit
+    aliases: ["Edit"]
+    family: current
+    cull: false
+    edit: true
+    retouch: false
+    custom_profiles: null
+    crop_straighten: null
+  - name: Retouch
+    aliases: ["Retouch"]
+    family: current
+    cull: false
+    edit: false
+    retouch: true
+    custom_profiles: 0
+    crop_straighten: false
+  - name: Select + Edit
+    aliases: ["Select + Edit", "Edit + Select"]
+    family: current
+    cull: true
+    edit: true
+    retouch: false
+    custom_profiles: null
+    crop_straighten: null
+  - name: Select + Retouch
+    aliases: ["Select + Retouch", "Retouch + Select"]
+    family: current
+    cull: true
+    edit: false
+    retouch: true
+    custom_profiles: 0
+    crop_straighten: false
+  - name: Edit + Retouch
+    aliases: ["Edit + Retouch", "Retouch + Edit"]
+    family: current
+    cull: false
+    edit: true
+    retouch: true
+    custom_profiles: null
+    crop_straighten: null
+  - name: Complete
+    aliases: ["Complete"]
+    family: current
+    cull: true
+    edit: true
+    retouch: true
+    custom_profiles: null
+    crop_straighten: true
